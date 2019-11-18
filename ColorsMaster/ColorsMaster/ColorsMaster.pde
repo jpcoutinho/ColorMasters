@@ -9,7 +9,8 @@ PImage tutorial[] = new PImage[2];
 PImage resultados[] = new PImage[4];
 
 PImage heart[] = new PImage[2];
-PImage game;
+PImage game[] = new PImage[2];
+
 //*******************************************************//
 
 //************************Fontes************************//
@@ -34,6 +35,8 @@ String blue;
 static int botao = 2;
 long timeLock = 200;
 long timestampBotao; 
+long timestampBotaoAlto; 
+boolean buttonLock = true;
 //*****************************************************//
 
 
@@ -50,11 +53,14 @@ long timer = 40; //em segundos
 long timerStart;
 String timerNumber;
 
-int randomR, randomG, randomB;
+int randomR = 0, randomG = 0, randomB = 0;
 boolean sortear = true;
 
 long timestampResultado;
 
+int pontuacao = 0;
+
+int erro = 100;
 //*****************************************************//
 
 void setup() 
@@ -69,14 +75,15 @@ void setup()
 
   heart[0] = loadImage("Heart.png");
   heart[1] = loadImage("Heart_Empty.png");
-  
-  game = loadImage("Game.png");
+
+  game[0] = loadImage("Game.png");
+  game[1] = loadImage("GameResults.png");
   fonte = loadFont("MyriadPro-BoldIt-48.vlw");
-  
+
   resultados[0] = loadImage("Right_Screen.png"); 
   resultados[1] = loadImage("Wrong_Screen.png");
-  resultados[2] = loadImage("Wrong_Screen.png");
-  resultados[3] = loadImage("Wrong_Screen.png");
+  resultados[2] = loadImage("Timeup.png");
+  resultados[3] = loadImage("GameOver.png");
 
   println(Arduino.list());
   arduino = new Arduino(this, Arduino.list()[0], 57600);
@@ -87,50 +94,78 @@ void setup()
 
   timestampBotao = millis();
   timestampTela = millis();
+  timestampBotaoAlto = millis();
 }
 
 void draw() 
 {
   background(0);
 
-  if (arduino.digitalRead(botao) == Arduino.LOW && (millis() - timestampBotao) >= timeLock && frameCount > 180)
+  if (arduino.digitalRead(botao) == Arduino.HIGH)
+  {
+    if (millis() - timestampBotaoAlto >= timeLock)
+    {
+      buttonLock = false;
+    }
+  }
+
+  if (arduino.digitalRead(botao) == Arduino.LOW && buttonLock == false/*(millis() - timestampBotaoAlto) >= timeLock*/ && frameCount > 180)
   {
     timestampBotao = millis();
-    
-    if(tela < 2)
+    buttonLock = true;
+
+    println("pressionou");
+
+    if (tela < 2)
     {
       tela++;
-    }
-
-    else
-    {
-      timerStart = millis();
       
-      if (valorR == 127)
+      if (tela == 3)
       {
-         if (valorG == 127)
-         {
-           
-           if (valorB == 127)
-           {
-             tela = 0;
-           }
-         }
+        tela = 2;
       }
-      
-      else
+    } 
+    
+    else if (tela == 2)
+    { 
+      //timerStart = millis();
+
+      if (valorR >= randomR - erro && valorR <= randomR + erro)
+      {
+        if (valorG >= randomG - erro && valorG <= randomG + erro)
+        {
+
+          if (valorB >= randomB - erro && valorB <= randomB + erro)
+          {
+            tela = 4;
+            timestampResultado = millis();
+          } else
+          {
+            tela = 5;
+            timestampResultado = millis();
+          }
+        } else
+        {
+          tela = 5;
+          timestampResultado = millis();
+        }
+      } else
       {
         tela = 5;
         timestampResultado = millis();
-        vidas--;
       }
     }
+    
   }
 
   switch(tela)
   {
   case 0: //tittle screen
     {
+
+      vidas = 3;
+      timer = 40;
+      pontuacao = 0;
 
       imageMode(CORNER);
 
@@ -160,7 +195,7 @@ void draw()
   case 1: //tutorial
     {
       imageMode(CORNER);
-      
+
       if (millis() - timestampTela >= 700)
       {
         auxTela++;
@@ -186,40 +221,48 @@ void draw()
 
   case 2:
     {
-      
+
       if (sortear == true)
       {
         randomR = int(random(256));
         randomG = int(random(256)); 
         randomB = int(random(256));
-        
+
         sortear = false; 
+
+        timer = 40;
+        timerNumber = str(int(timer));
+        timerStart = millis();
       }
-      
-      if(millis() - timerStart >= 1000)
+
+      if (millis() - timerStart >= 1000)
       {
         timer--;
         timerStart = millis();
-        
+
         timerNumber = str(int(timer));
+
+        if (timer == 0)
+        {
+          tela = 6;
+          timestampResultado = millis();
+          break;
+        }
       }
-      
+
       imageMode(CORNER);
-  
-      image(game, 0, 0);
-      
+      image(game[0], 0, 0);
+
       imageMode(CENTER);
-      for(int i = 0; i < 3; i++)
+      for (int i = 0; i < 3; i++)
       {
-        if(vidas >= i+1)
+        if (vidas >= i+1)
         {
           image(heart[0], 1120+i*60, 70);
-        }  
-        
-        else
-        
-        image(heart[1], 1120+i*60, 70);
-        
+        } else
+        {
+          image(heart[1], 1120+i*60, 70);
+        }
       }
 
       float aux;
@@ -227,7 +270,6 @@ void draw()
       aux = map(float(valorR), 0.0, 1023.0, 0.0, 255.0);
       valorR = int(aux);
       red = str(valorR);
-      
 
       valorG = arduino.analogRead(1);
       aux = map(float(valorG), 0.0, 1023.0, 0.0, 255.0);
@@ -243,69 +285,190 @@ void draw()
 
       textSize(40);
       fill(255, 0, 0);
-      text(red, 400, 600);
+      text(red, 450, 630);
 
       fill(0, 255, 0);
-      text(green, 600, 600);
+      text(green, 750, 630);
 
       fill(0, 0, 255);
-      text(blue, 800, 600);
-      
+      text(blue, 1050, 630);
+
       stroke(0, 0, 0);
       strokeWeight(5);
       rectMode(CENTER);
       fill(randomR, randomG, randomB);
       rect(width/2, height/2 - 50, 250, 250);
-      
-      
+
+
       textFont(fonte);
       textAlign(CENTER);
       textSize(80);
-      fill(0, 0, 0);
+      if (timer < 16)
+      {
+        fill(255, 0, 0);
+      } else
+      {
+        fill(0, 0, 0);
+      }
       text(timerNumber, width/2, 100);
-      
+
+      textFont(fonte);
+      textAlign(CENTER);
+      textSize(36);
+      fill(0, 0, 0);
+      text(str(pontuacao), 250, 95);
+
       break;
     }
-    
-    case 3: //tela conferencia
+
+  case 3: //tela conferencia
     {
-     break; //tela err
+   
+      imageMode(CORNER);
+      image(game[1], 0, 0);
+
+      imageMode(CENTER);
+      
+      for (int i = 0; i < 3; i++)
+      {
+        if (vidas >= i+1)
+        {
+          image(heart[0], 1120+i*60, 70);
+        } else
+        {
+          image(heart[1], 1120+i*60, 70);
+        }
+      }
+
+     
+      red = str(valorR);
+      green = str(valorG);
+      blue = str(valorB);
+
+      println(tela);
+
+      textSize(40);
+      fill(255, 0, 0);
+      text(red, 450, 630);
+
+      fill(0, 255, 0);
+      text(green, 750, 630);
+
+      fill(0, 0, 255);
+      text(blue, 1050, 630);
+
+      stroke(0, 0, 0);
+      strokeWeight(5);
+      rectMode(CENTER);
+      fill(randomR, randomG, randomB);
+      rect(width/4, height/2 - 50, 250, 250);
+      
+      stroke(0, 0, 0);
+      strokeWeight(5);
+      rectMode(CENTER);
+      fill(valorR, valorG, valorB);
+      rect(width/4 + 700, height/2 - 50, 250, 250);
+
+
+      textFont(fonte);
+      textAlign(CENTER);
+      textSize(80);
+      if (timer < 16)
+      {
+        fill(255, 0, 0);
+      } else
+      {
+        fill(0, 0, 0);
+      }
+      text(timerNumber, width/2, 100);
+
+      textFont(fonte);
+      textAlign(CENTER);
+      textSize(36);
+      fill(0, 0, 0);
+      text(str(pontuacao), 250, 95);
+      
+      break;
+      
     }
-    
-     case 4: //tela resposta certa
+
+  case 4: //tela resposta certa
     {
       imageMode(CORNER);
       image(resultados[0], 0, 0);
-      
-      if(millis() - timestampResultado > 3000)
+
+      if (millis() - timestampResultado > 2000)
       {
-        tela = 2;
+        tela = 3;
+        sortear = true;
+
+        pontuacao += timer;
       }
-      
-     break; 
+
+      break;
     }
-    
-     case 5: // tela resposta errada
+
+  case 5: // tela resposta errada
     {
+
+
       imageMode(CORNER);
       image(resultados[1], 0, 0);
-      
-      if(millis() - timestampResultado > 3000)
+
+      if (millis() - timestampResultado > 2000)
       {
-        tela = 2;
+        tela = 3;
+        sortear = true;
+
+        vidas--;
       }
-      
-     break; 
+
+      if (vidas == 0)
+      {
+        tela = 7;
+        timestampResultado = millis();
+      };
+
+      break;
     }
-    
-     case 6: //tela timeup
+
+  case 6: //tela timeup
     {
-     break; 
+      imageMode(CORNER);
+      image(resultados[2], 0, 0);
+
+      if (millis() - timestampResultado > 2000)
+      {
+        tela = 3;
+        sortear = true;
+
+        vidas--;
+        timer = 40;
+      }
+
+      if (vidas == 0)
+      {
+
+        tela = 7;
+        timestampResultado = millis();
+      };
+
+      break;
     }
-    
-     case 7: //tela gameover
+
+  case 7: //tela gameover
     {
-     break; 
+      background(0);
+      imageMode(CORNER);
+      image(resultados[3], 0, 0);
+
+      if (millis() - timestampResultado > 2000)
+      {
+        tela = 0;
+        sortear = true;
+      }
+
+      break;
     }
 
   default:
@@ -313,9 +476,10 @@ void draw()
     }
   }
 
-  print("mouse x, y: ");
-  println(mouseX, mouseY);
-  
-  print("resposta");
-  println(randomR, randomG, randomB);
+  //print("mouse x, y: ");
+  //println(mouseX, mouseY);
+
+  //print("resposta");
+  //println(randomR, randomG, randomB);
+  println(arduino.digitalRead(botao));
 }
